@@ -1,2 +1,7 @@
 (library
- (name phi_calculus))
+ (modules
+   syntax
+   eval
+ )
+ (name phi_calculus)
+)
