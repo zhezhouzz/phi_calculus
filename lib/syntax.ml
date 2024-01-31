@@ -6,6 +6,31 @@ type message =
   | Inr of message
   | Enc of { key : message; content : message }
 
+type qualifier =
+  | Top
+  | Bot
+  | Eq of message * message
+  | And of qualifier * qualifier
+  | Not of qualifier
+
+type process =
+  | Zero
+  | In of { ch : message; received : string; proc : process }
+  | Out of { ch : message; msg : message; proc : process }
+  | Parallel of process * process
+  | New of string * process
+  | NewInt of string * process
+  | CheckEq of { m1 : message; m2 : message; proc : process }
+  | CheckNeq of { m1 : message; m2 : message; proc : process }
+  | Dec of {
+      encoded : message;
+      decoded : string;
+      key : message;
+      proc : process;
+    }
+  | Split of { pair : message; fst : string; snd : string; proc : process }
+  | Assert of { phi : qualifier; proc : process }
+
 let rec subst_message (x : string) (msg : message) (body : message) =
   match body with
   | CInt _ -> body
@@ -28,13 +53,6 @@ let rec eq_message (m1 : message) (m2 : message) =
       eq_message k1 k2 && eq_message c1 c2
   | _, _ -> false
 
-type qualifier =
-  | Top
-  | Bot
-  | Eq of message * message
-  | And of qualifier * qualifier
-  | Not of qualifier
-
 let rec check_qualifier phi : bool =
   match phi with
   | Top -> true
@@ -50,24 +68,6 @@ let rec subst_qualifier (x : string) (msg : message) (phi : qualifier) =
   | And (phi1, phi2) ->
       And (subst_qualifier x msg phi1, subst_qualifier x msg phi2)
   | Not phi -> Not (subst_qualifier x msg phi)
-
-type process =
-  | Zero
-  | In of { ch : message; received : string; proc : process }
-  | Out of { ch : message; msg : message; proc : process }
-  | Parallel of process * process
-  | New of string * process
-  | NewInt of string * process
-  | CheckEq of { m1 : message; m2 : message; proc : process }
-  | CheckNeq of { m1 : message; m2 : message; proc : process }
-  | Dec of {
-      encoded : message;
-      decoded : string;
-      key : message;
-      proc : process;
-    }
-  | Split of { pair : message; fst : string; snd : string; proc : process }
-  | Assert of { phi : qualifier; proc : process }
 
 let rec subst_process (x : string) (m : message) (proc : process) =
   match proc with
@@ -125,13 +125,13 @@ let rec layout_message (msg : message) =
   | Pair (m1, m2) -> sprintf "(%s, %s)" (layout_message m1) (layout_message m2)
   | Inl m -> sprintf "Inl(%s)" (layout_message m)
   | Inr m -> sprintf "Inr(%s)" (layout_message m)
-  | Enc { key; content } ->
-      sprintf "{%s}_{%s}" (layout_message key) (layout_message content)
+  | Enc { content; key } ->
+      sprintf "{%s}_{%s}" (layout_message content) (layout_message key)
 
 let rec layout_qualifier (phi : qualifier) =
   match phi with
-  | Top -> "⊥"
-  | Bot -> "⊤"
+  | Top -> "⊤"
+  | Bot -> "⊥"
   | Eq (phi1, phi2) ->
       sprintf "%s = %s" (layout_message phi1) (layout_message phi2)
   | And (phi1, phi2) ->
@@ -142,14 +142,14 @@ let rec layout_process (proc : process) =
   match proc with
   | Zero -> "Zero"
   | In { ch; received; proc } ->
-      sprintf "%s!%s.%s" (layout_message ch) received (layout_process proc)
+      sprintf "%s?%s.%s" (layout_message ch) received (layout_process proc)
   | Out { ch; msg; proc } ->
-      sprintf "%s?%s.%s" (layout_message ch) (layout_message msg)
+      sprintf "%s!%s.%s" (layout_message ch) (layout_message msg)
         (layout_process proc)
   | Parallel (p1, p2) ->
       sprintf "%s | %s" (layout_process p1) (layout_process p2)
   | New (n, proc) -> sprintf "(ν%s)%s" n (layout_process proc)
-  | NewInt (n, proc) -> sprintf "(ν%s)%s" n (layout_process proc)
+  | NewInt (n, proc) -> sprintf "(iν%s)%s" n (layout_process proc)
   | CheckEq { m1; m2; proc } ->
       sprintf "check %s is %s.%s" (layout_message m1) (layout_message m2)
         (layout_process proc)

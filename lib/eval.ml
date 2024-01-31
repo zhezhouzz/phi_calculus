@@ -123,8 +123,8 @@ let run normal =
     | _ -> (
         match step pool with
         | Ok pool -> aux pool
-        | Error msg ->
-            let _ = Printf.printf "[Error:] %s\n" msg in
+        | Error info ->
+            let _ = Printf.printf "[Error:] %s\n" info in
             ())
   in
   aux pool
